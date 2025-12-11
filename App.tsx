@@ -4,6 +4,7 @@ import { Plus, DollarSign, X, Settings, Heart, AlertCircle, Edit2, TrendingUp, S
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, setDoc, onSnapshot, DocumentData, Unsubscribe } from 'firebase/firestore';
+import { GoogleGenAI } from "@google/genai";
 
 import { Category, Expense, CatMood, CatStage, CATEGORY_COLORS, CatId, HatId, CAT_PROFILES, HAT_PROFILES } from './types';
 import { ThreeDCat } from './components/ThreeDCat';
@@ -43,6 +44,7 @@ export default function App() {
   const [catId, setCatId] = useState<CatId>('pertti');
   const [hatId, setHatId] = useState<HatId>('none');
   const [isPurring, setIsPurring] = useState(false);
+  const [catInsight, setCatInsight] = useState<string>('');
 
   // Modals
   const [showAddModal, setShowAddModal] = useState(false);
@@ -285,6 +287,40 @@ export default function App() {
     }));
   }, [expenses]);
 
+  // --- GENAI INSIGHT ---
+  useEffect(() => {
+    if (showChartModal) {
+      const fetchInsight = async () => {
+        setCatInsight("Thinking...");
+        try {
+          const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+          const prompt = `You are a ${mood} cat named ${CAT_PROFILES.find(c => c.id === catId)?.name || 'Kitty'}. 
+          The user has a budget of $${budget} and has spent $${totalSpent.toFixed(2)}. 
+          Mood: ${mood}.
+          Expenses breakdown: ${chartData.map(c => `${c.name}: $${c.value}`).join(', ')}.
+          Provide a short, witty, 1-2 sentence remark about their spending habits or financial health. Be in character (use meows/purrs if happy, hisses if angry).`;
+          
+          const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+          });
+          if (response.text) {
+            setCatInsight(response.text);
+          }
+        } catch (error) {
+           console.error("GenAI Error:", error);
+           // Fallback logic
+           setCatInsight(spendingRatio > 1 
+              ? "We've burned through the budget! The cat is stressed. Check the 'Other' category."
+              : spendingRatio > 0.8 
+              ? "Getting close to the limit. Maybe skip the extra treats?"
+              : "Excellent financial health! The cat is thriving.");
+        }
+      };
+      fetchInsight();
+    }
+  }, [showChartModal, budget, totalSpent, mood, spendingRatio, catId, chartData]);
+
   if (isLoading) {
     return (
       <div className="h-[100dvh] w-full flex items-center justify-center bg-[#FDFCF8]">
@@ -442,11 +478,7 @@ export default function App() {
                <div>
                  <span className="text-xs font-bold text-[#A1887F] uppercase block mb-1">Cat's Insight</span>
                  <p className="text-sm text-[#5D4037] leading-relaxed">
-                   {spendingRatio > 1 
-                    ? "We've burned through the budget! The cat is stressed. Check the 'Other' category."
-                    : spendingRatio > 0.8 
-                    ? "Getting close to the limit. Maybe skip the extra treats?"
-                    : "Excellent financial health! The cat is thriving."}
+                   {catInsight || "Thinking..."}
                  </p>
                </div>
              </div>
