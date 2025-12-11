@@ -1,0 +1,5 @@
+{
+  "name": "purrbudget",
+  "description": "A delightful budget tracker featuring a reactive 3D-styled cat companion that responds to your spending habits.",
+  "requestFramePermissions": []
+}
